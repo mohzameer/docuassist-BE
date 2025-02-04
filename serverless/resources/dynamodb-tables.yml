@@ -1,0 +1,13 @@
+# resources/dynamodb-tables.yml
+Resources:
+  OrgsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:provider.environment.ORGS_TABLE}
+      AttributeDefinitions:
+        - AttributeName: org_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: org_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST

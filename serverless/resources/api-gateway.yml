@@ -1,0 +1,75 @@
+# resources/api-gateway.yml
+Resources:
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ${self:service}-${self:provider.stage}
+      Description: API for ${self:service}
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ApiGatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ${self:service}-${self:provider.stage}-apigateway-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource:
+                  - arn:aws:logs:${self:provider.region}:${aws:accountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}:*
+                  - arn:aws:logs:${self:provider.region}:${aws:accountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}:log-stream:*
+
+ # on second deployment, uncomment the following block
+  CreateTenantApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: createTenantApiKey
+      Enabled: true
+      Value: 01JGTHYR6KJJEMSBK6YJBB58RW
+      StageKeys:
+        - RestApiId:
+            Ref: ApiGatewayRestApi
+          StageName: ${self:provider.stage}
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: serverlessApiGatewayCloudWatchRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayCloudWatchLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:${self:provider.region}:${aws:accountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}:*

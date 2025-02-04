@@ -1,0 +1,181 @@
+service: docuassist-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'eu-central-1'}
+  memorySize: 256
+  timeout: 30
+  logRetentionInDays: 14
+  apiGateway:
+    minimumCompressionSize: 1024
+    shouldStartNameWithService: true
+    metrics: true
+  logs:
+    restApi:
+      level: INFO
+      fullExecutionData: true
+
+  environment:
+    ORG_TABLE: Orgs-${self:provider.stage}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: arn:aws:logs:${self:provider.region}:${aws:accountId}:*
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Orgs-${self:provider.stage}
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminRespondToAuthChallenge
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:GlobalSignOut
+          Resource: 
+            - !GetAtt UserPool.Arn
+
+functions:
+  getCurrentUser:
+    handler: src/handlers/auth.getCurrentUser
+    events:
+      - http:
+          path: /auth/me
+          method: get
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  createUser:
+    handler: src/handlers/auth.createUser
+    events:
+      - http:
+          path: /auth/users
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  refreshToken:
+    handler: src/handlers/auth.refreshToken
+    events:
+      - http:
+          path: /auth/token/refresh
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  validateToken:
+    handler: src/handlers/auth.validateToken
+    events:
+      - http:
+          path: /auth/token/validate
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  signout:
+    handler: src/handlers/auth.signout
+    events:
+      - http:
+          path: /auth/signout
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  
+
+  loginUser:
+    handler: src/handlers/auth.loginUser
+    events:
+      - http:
+          path: /auth/login
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  signup:
+    handler: src/handlers/auth.signup
+    events:
+      - http:
+          path: /auth/signup
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  signupConfirmed:
+    handler: src/handlers/auth.signupConfirmed
+    events:
+      - http:
+          path: /auth/signup-confirmed
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+  - serverless-dotenv-plugin
+
+custom:
+  userPoolArn: !GetAtt UserPool.Arn
+  esbuild:
+    bundle: true
+    minify: true
+    target: 'node20'
+    platform: 'node'
+    sourcemap: true
+    exclude:
+      - aws-sdk  # Ensure aws-sdk is excluded
+  corsHeaders:
+    - Accept
+    - Content-Type
+    - Content-Length
+    - Authorization
+    - X-Amz-Date
+    - X-Api-Key
+    - X-Amz-Security-Token
+    - X-Amz-User-Agent
+    - X-Tenant-Id
+    - X-Access-Token
+
+resources:
+  - ${file(serverless/resources/cognito.yml)}
+  - ${file(serverless/resources/dynamodb-tables.yml)}
+  - ${file(serverless/resources/api-gateway.yml)}

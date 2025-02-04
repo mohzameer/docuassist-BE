@@ -1,0 +1,136 @@
+# serverless/resources/cognito.yml
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ${self:service}-${self:provider.stage}-user-pool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: given_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: family_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: tenant_id
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: permissions
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      MfaConfiguration: "OFF"
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ${self:service}-${self:provider.stage}-client
+      UserPoolId: !Ref UserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      PreventUserExistenceErrors: ENABLED
+      GenerateSecret: false
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      ReadAttributes:
+        - email
+        - given_name
+        - family_name
+      WriteAttributes:
+        - email
+        - given_name
+        - family_name
+      AuthSessionValidity: 15
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: ${self:service}-${self:provider.stage}-${self:provider.region}
+      UserPoolId: !Ref UserPool
+
+  # Optional: Create Groups for Role-Based Access
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      UserPoolId: !Ref UserPool
+      Description: Administrators group
+      Precedence: 0
+
+  PowerUserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: PowerUsers
+      UserPoolId: !Ref UserPool
+      Description: Power users group
+      Precedence: 1
+
+  UserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Users
+      UserPoolId: !Ref UserPool
+      Description: Regular users group
+      Precedence: 2
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Description: ID of the User Pool
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolId
+
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Description: ID of the User Pool Client
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolClientId
+
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Description: ARN of the User Pool
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolArn
+
+  CognitoDomain:
+    Value: !Sub https://${UserPoolDomain}.auth.${self:provider.region}.amazoncognito.com
+    Description: Cognito Domain
+    Export:
+      Name: ${self:service}-${self:provider.stage}-CognitoDomain
