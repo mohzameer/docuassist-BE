@@ -3,7 +3,7 @@ Resources:
   OrgsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ${self:provider.environment.ORGS_TABLE}
+      TableName: Orgs-${self:provider.stage}
       AttributeDefinitions:
         - AttributeName: org_id
           AttributeType: S

@@ -18,6 +18,7 @@ provider:
     restApi:
       level: INFO
       fullExecutionData: true
+      
 
   environment:
     ORG_TABLE: Orgs-${self:provider.stage}
