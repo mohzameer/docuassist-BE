@@ -25,6 +25,7 @@ provider:
     USERS_TABLE: Users-${self:provider.stage}
     COGNITO_USER_POOL_ID: !Ref UserPool
     COGNITO_CLIENT_ID: !Ref UserPoolClient
+    CONVERSATIONS_TABLE: Conversations-${self:provider.stage}
 
   # Add base IAM role statements that all functions will inherit
   iam:
@@ -150,6 +151,16 @@ functions:
             headers: ${self:custom.corsHeaders}
             allowCredentials: true
 
+  createConversation:
+    handler: src/handlers/conversations.createConversation
+    events:
+      - http:
+          path: /conversations
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
 
 plugins:
   - serverless-esbuild

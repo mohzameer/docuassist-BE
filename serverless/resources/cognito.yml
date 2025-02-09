@@ -93,22 +93,13 @@ Resources:
       UserPoolId: !Ref UserPool
       Description: Administrators group
       Precedence: 0
-
-  PowerUserGroup:
-    Type: AWS::Cognito::UserPoolGroup
-    Properties:
-      GroupName: PowerUsers
-      UserPoolId: !Ref UserPool
-      Description: Power users group
-      Precedence: 1
-
   UserGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
       GroupName: Users
       UserPoolId: !Ref UserPool
       Description: Regular users group
-      Precedence: 2
+      Precedence: 1
 
 Outputs:
   UserPoolId:
