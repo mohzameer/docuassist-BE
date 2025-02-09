@@ -23,7 +23,7 @@ Resources:
           AttributeDataType: String
           Mutable: true
           Required: false
-        - Name: tenant_id
+        - Name: org_id
           AttributeDataType: String
           Mutable: true
           Required: false

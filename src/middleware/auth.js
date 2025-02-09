@@ -16,13 +16,12 @@ const accessTokenVerifier = CognitoJwtVerifier.create({
 
 const auth = async (event) => {
     try {
-        // Extract tokens and tenant ID
+        // Extract tokens 
         const idToken = event.headers.Authorization?.replace('Bearer ', '');
         const accessToken = event.headers['x-access-token']?.replace('Bearer ', '');
-        const tenantId = event.headers['x-tenant-id'];
 
         // Early validation of required fields
-        if (!idToken || !accessToken || !tenantId) {
+        if (!idToken || !accessToken) {
             return createUnauthorizedResponse('Missing required authentication headers');
         }
 
@@ -47,7 +46,6 @@ const auth = async (event) => {
         return {
             userId: idPayload.sub,
             email: idPayload.email,
-            tenantId,
             givenName: idPayload.given_name,
             familyName: idPayload.family_name
         };

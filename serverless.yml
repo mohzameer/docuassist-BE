@@ -14,7 +14,7 @@ provider:
     minimumCompressionSize: 1024
     shouldStartNameWithService: true
     metrics: true
-  logs:
+  logs: #3rd dep
     restApi:
       level: INFO
       fullExecutionData: true
@@ -22,7 +22,11 @@ provider:
 
   environment:
     ORG_TABLE: Orgs-${self:provider.stage}
+    USERS_TABLE: Users-${self:provider.stage}
+    COGNITO_USER_POOL_ID: !Ref UserPool
+    COGNITO_CLIENT_ID: !Ref UserPoolClient
 
+  # Add base IAM role statements that all functions will inherit
   iam:
     role:
       statements:
@@ -31,19 +35,8 @@ provider:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: arn:aws:logs:${self:provider.region}:${aws:accountId}:*
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-            - dynamodb:BatchGetItem
-            - dynamodb:BatchWriteItem
-          Resource:
-            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Orgs-${self:provider.stage}
+          Resource: 
+            - arn:aws:logs:${self:provider.region}:${aws:accountId}:*
         - Effect: Allow
           Action:
             - cognito-idp:AdminCreateUser
@@ -56,6 +49,28 @@ provider:
             - cognito-idp:GlobalSignOut
           Resource: 
             - !GetAtt UserPool.Arn
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            # Table permissions
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Users-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Orgs-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Conversations-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Messages-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Files-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/FileConversationMapping-${self:provider.stage}
+            # Index permissions
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Users-${self:provider.stage}/index/*
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Messages-${self:provider.stage}/index/*
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Files-${self:provider.stage}/index/*
 
 functions:
   getCurrentUser:
@@ -101,19 +116,6 @@ functions:
             origin: '*'
             headers: ${self:custom.corsHeaders}
             allowCredentials: true
-
-  signout:
-    handler: src/handlers/auth.signout
-    events:
-      - http:
-          path: /auth/signout
-          method: post
-          cors:
-            origin: '*'
-            headers: ${self:custom.corsHeaders}
-            allowCredentials: true
-
-  
 
   loginUser:
     handler: src/handlers/auth.loginUser
@@ -173,10 +175,9 @@ custom:
     - X-Api-Key
     - X-Amz-Security-Token
     - X-Amz-User-Agent
-    - X-Tenant-Id
     - X-Access-Token
 
 resources:
   - ${file(serverless/resources/cognito.yml)}
   - ${file(serverless/resources/dynamodb-tables.yml)}
-  - ${file(serverless/resources/api-gateway.yml)}
+  - ${file(serverless/resources/api-gateway.yml)} #2nd dep

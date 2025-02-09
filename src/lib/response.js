@@ -5,7 +5,7 @@ const buildResponse = (statusCode, body) => ({
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Credentials': true,
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id,X-Access-Token,X-Tenant-Id',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id,X-Access-Token',
         'Access-Control-Allow-Methods': 'OPTIONS,GET,POST,PUT,DELETE'
     },
     body: JSON.stringify(body)

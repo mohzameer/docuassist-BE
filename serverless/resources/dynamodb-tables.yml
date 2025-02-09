@@ -5,9 +5,120 @@ Resources:
     Properties:
       TableName: Orgs-${self:provider.stage}
       AttributeDefinitions:
-        - AttributeName: org_id
+        - AttributeName: orgId
           AttributeType: S
       KeySchema:
-        - AttributeName: org_id
+        - AttributeName: orgId
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Users-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId   # ULID
+          AttributeType: S
+        - AttributeName: orgId
+          AttributeType: S
+        - AttributeName: user_id_ref  # Add this for the Cognito ID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: orgId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdRefIndex
+          KeySchema:
+            - AttributeName: user_id_ref
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Conversations-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: conversationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: conversationId
+          KeyType: RANGE
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Messages-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: timestamp_messageId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversationId
+          KeyType: HASH
+        - AttributeName: timestamp_messageId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserMessagesIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  FilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Files-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: fileId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fileId
+          KeyType: HASH
+        - AttributeName: userId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserFilesIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  FileConversationMappingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FileConversationMapping-${self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: fileId
+          AttributeType: S
+        - AttributeName: conversationId_timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fileId
+          KeyType: HASH
+        - AttributeName: conversationId_timestamp
+          KeyType: RANGE
