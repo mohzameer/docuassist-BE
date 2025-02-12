@@ -51,74 +51,19 @@ Resources:
         - AttributeName: conversationId
           KeyType: RANGE
 
-  MessagesTable:
+  AllMessagesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: Messages-${self:provider.stage}
+      TableName: AllMessages-${self:provider.stage}
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: conversationId
           AttributeType: S
-        - AttributeName: timestamp_messageId
-          AttributeType: S
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: timestamp
+        - AttributeName: messageId
           AttributeType: S
       KeySchema:
         - AttributeName: conversationId
           KeyType: HASH
-        - AttributeName: timestamp_messageId
+        - AttributeName: messageId
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: UserMessagesIndex
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: timestamp
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-  FilesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: Files-${self:provider.stage}
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: fileId
-          AttributeType: S
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: created_at
-          AttributeType: S
-      KeySchema:
-        - AttributeName: fileId
-          KeyType: HASH
-        - AttributeName: userId
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: UserFilesIndex
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: created_at
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-  FileConversationMappingTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: FileConversationMapping-${self:provider.stage}
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: fileId
-          AttributeType: S
-        - AttributeName: conversationId_timestamp
-          AttributeType: S
-      KeySchema:
-        - AttributeName: fileId
-          KeyType: HASH
-        - AttributeName: conversationId_timestamp
-          KeyType: RANGE
+      

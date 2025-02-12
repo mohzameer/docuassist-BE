@@ -26,6 +26,7 @@ provider:
     COGNITO_USER_POOL_ID: !Ref UserPool
     COGNITO_CLIENT_ID: !Ref UserPoolClient
     CONVERSATIONS_TABLE: Conversations-${self:provider.stage}
+    ALL_MESSAGES_TABLE: AllMessages-${self:provider.stage}
 
   # Add base IAM role statements that all functions will inherit
   iam:
@@ -65,12 +66,11 @@ provider:
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Users-${self:provider.stage}
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Orgs-${self:provider.stage}
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Conversations-${self:provider.stage}
-            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Messages-${self:provider.stage}
+            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/AllMessages-${self:provider.stage}
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Files-${self:provider.stage}
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/FileConversationMapping-${self:provider.stage}
             # Index permissions
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Users-${self:provider.stage}/index/*
-            - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Messages-${self:provider.stage}/index/*
             - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/Files-${self:provider.stage}/index/*
 
 functions:
@@ -157,6 +157,39 @@ functions:
       - http:
           path: /conversations
           method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  createMessage:
+    handler: src/handlers/conversations.createMessage
+    events:
+      - http:
+          path: /conversations/{conversationId}/messages
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  getConversations:
+    handler: src/handlers/conversations.getConversations
+    events:
+      - http:
+          path: /conversations
+          method: get
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  getMessages:
+    handler: src/handlers/conversations.getMessages
+    events:
+      - http:
+          path: /conversations/{conversationId}/messages
+          method: get
           cors:
             origin: '*'
             headers: ${self:custom.corsHeaders}
