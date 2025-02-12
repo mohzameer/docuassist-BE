@@ -195,6 +195,28 @@ functions:
             headers: ${self:custom.corsHeaders}
             allowCredentials: true
 
+  generateTitle:
+    handler: src/handlers/conversations.generateConversationTitle
+    events:
+      - http:
+          path: /conversations/generate-title
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  updateConversationTitle:
+    handler: src/handlers/conversations.updateConversationTitle
+    events:
+      - http:
+          path: /conversations/{conversationId}/title
+          method: put
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
 plugins:
   - serverless-esbuild
   - serverless-offline

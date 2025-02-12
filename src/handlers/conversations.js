@@ -4,6 +4,7 @@ import { success, error, notFound } from '../lib/response.js';
 import auth from '../middleware/auth.js';
 import { getCurrentTimestamp, validateRequiredFields } from '../utils/common.js';
 import { getAIResponse } from '../services/ai.js';
+import { generateTitle } from '../services/claude.js';
 
 export const createConversation = async (event) => {
     try {
@@ -258,15 +259,17 @@ export const getConversations = async (event) => {
 
         const conversationsResult = await dynamoDB.query(conversationsParams);
 
-        // 4. Return conversations list
+        // 4. Return conversations list sorted by updated_at in descending order
         return success({
-            conversations: conversationsResult.Items.map(conversation => ({
-                conversationId: conversation.conversationId,
-                topic: conversation.topic,
-                created_at: conversation.created_at,
-                updated_at: conversation.updated_at,
-                last_message_timestamp: conversation.last_message_timestamp
-            }))
+            conversations: conversationsResult.Items
+                .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+                .map(conversation => ({
+                    conversationId: conversation.conversationId,
+                    topic: conversation.topic,
+                    created_at: conversation.created_at,
+                    updated_at: conversation.updated_at,
+                    last_message_timestamp: conversation.last_message_timestamp
+                }))
         });
 
     } catch (err) {
@@ -348,6 +351,82 @@ export const getMessages = async (event) => {
 
     } catch (err) {
         console.error('Error getting messages:', err);
+        return error(err);
+    }
+};
+
+export const generateConversationTitle = async (event) => {
+    try {
+        const { messageContent } = JSON.parse(event.body);
+        if (!messageContent) {
+            return error(new Error('Message content is required'));
+        }
+
+        const title = await generateTitle(messageContent);
+        return success(title);
+
+    } catch (err) {
+        console.error('Error generating title:', err);
+        return error(err);
+    }
+};
+
+export const updateConversationTitle = async (event) => {
+    try {
+        // 1. Authenticate request
+        const user = await auth(event);
+        if (user.statusCode) return user;
+
+        // 2. Get actual userId from Users table
+        const userParams = {
+            TableName: process.env.USERS_TABLE,
+            IndexName: 'UserIdRefIndex',
+            KeyConditionExpression: 'user_id_ref = :user_id_ref',
+            ExpressionAttributeValues: {
+                ':user_id_ref': user.userId
+            }
+        };
+
+        const userResult = await dynamoDB.query(userParams);
+        if (!userResult.Items || userResult.Items.length === 0) {
+            return notFound('User not found');
+        }
+
+        const actualUserId = userResult.Items[0].userId;
+
+        // 3. Get conversationId and new title
+        const { conversationId } = event.pathParameters;
+        const { topic } = JSON.parse(event.body);
+
+        if (!topic) {
+            return error(new Error('Topic is required'));
+        }
+
+        // 4. Update conversation
+        const updateParams = {
+            TableName: process.env.CONVERSATIONS_TABLE,
+            Key: {
+                userId: actualUserId,
+                conversationId: conversationId
+            },
+            UpdateExpression: 'SET topic = :topic, updated_at = :updated_at',
+            ExpressionAttributeValues: {
+                ':topic': topic,
+                ':updated_at': getCurrentTimestamp()
+            },
+            ReturnValues: 'ALL_NEW'
+        };
+
+        const result = await dynamoDB.update(updateParams);
+
+        return success({
+            conversationId: result.Attributes.conversationId,
+            topic: result.Attributes.topic,
+            updated_at: result.Attributes.updated_at
+        });
+
+    } catch (err) {
+        console.error('Error updating conversation title:', err);
         return error(err);
     }
 }; 
