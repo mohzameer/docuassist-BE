@@ -4,7 +4,7 @@ import { success, error, notFound } from '../lib/response.js';
 import auth from '../middleware/auth.js';
 import { getCurrentTimestamp, validateRequiredFields } from '../utils/common.js';
 import { getAIResponse } from '../services/ai.js';
-import { generateTitle } from '../services/claude.js';
+import { generateTitle, formatAIResponse } from '../services/claude.js';
 
 export const createConversation = async (event) => {
     try {
@@ -129,30 +129,48 @@ export const createMessage = async (event) => {
 
         await dynamoDB.put(userMessageParams);
 
-        // 6. Get AI response
-        let aiResponse;
-        let aiError = null;
+        // Update conversation timestamp for user message
+        const updateConversationParams = {
+            TableName: process.env.CONVERSATIONS_TABLE,
+            Key: {
+                userId: actualUserId,
+                conversationId: conversationId
+            },
+            UpdateExpression: 'SET last_message_timestamp = :timestamp, updated_at = :updated_at',
+            ExpressionAttributeValues: {
+                ':timestamp': timestamp,
+                ':updated_at': timestamp
+            }
+        };
+
+        await dynamoDB.update(updateConversationParams);
+
+        // Try to get AI response
         try {
-            aiResponse = await getAIResponse(content, orgId);
-            console.log('AI Response:', aiResponse?.scored_chunks);
-        } catch (err) {
-            console.error('AI Response Error:', err);
-            aiError = err.message;
-        }
+            const aiResponse = await getAIResponse(content, orgId);
 
-        // If we have AI response, create AI message
-        if (aiResponse?.scored_chunks && !aiError) {
-
-            if (aiResponse?.scored_chunks.length === 0) {
-
+            if (aiResponse?.scored_chunks && aiResponse.scored_chunks.length > 0) {
                 const aiMessageId = ulid();
                 const aiTimestamp = getCurrentTimestamp();
+
+                let formattedText = aiResponse.scored_chunks[0].text;
+                try {
+                    // Try to format with Claude, but use original if it fails
+                    formattedText = await formatAIResponse(aiResponse.scored_chunks[0].text);
+                } catch (formatError) {
+                    console.error('Error formatting AI response:', formatError);
+                    // Continue with original text
+                }
+
                 const aiMessageParams = {
                     TableName: process.env.ALL_MESSAGES_TABLE,
                     Item: {
                         conversationId: conversationId,
                         messageId: aiMessageId,
-                        content: 'No AI response found',
+                        content: {
+                            ...aiResponse.scored_chunks[0],
+                            text: formattedText
+                        },
                         role: 'assistant',
                         created_at: aiTimestamp
                     }
@@ -160,64 +178,41 @@ export const createMessage = async (event) => {
 
                 await dynamoDB.put(aiMessageParams);
 
+                // Update conversation timestamp for AI response
+                await dynamoDB.update({
+                    ...updateConversationParams,
+                    ExpressionAttributeValues: {
+                        ':timestamp': aiTimestamp,
+                        ':updated_at': aiTimestamp
+                    }
+                });
+
                 return success({
                     message: {
                         id: aiMessageId,
-                        content: 'No AI response found',
+                        content: JSON.stringify({
+                            ...aiResponse.scored_chunks[0],
+                            text: formattedText
+                        }),
                         role: 'assistant',
                         created_at: aiTimestamp
                     }
                 });
             }
-
-            const aiMessageId = ulid();
-            const aiTimestamp = getCurrentTimestamp();
-            const aiMessageParams = {
-                TableName: process.env.ALL_MESSAGES_TABLE,
-                Item: {
-                    conversationId: conversationId,
-                    messageId: aiMessageId,
-                    content: aiResponse?.scored_chunks[0],
-                    role: 'assistant',
-                    created_at: aiTimestamp
-                }
-            };
-
-            await dynamoDB.put(aiMessageParams);
-
-            // Update conversation last_message_timestamp
-            const updateConversationParams = {
-                TableName: process.env.CONVERSATIONS_TABLE,
-                Key: {
-                    userId: actualUserId,
-                    conversationId: conversationId
-                },
-                UpdateExpression: 'SET last_message_timestamp = :timestamp, updated_at = :updated_at',
-                ExpressionAttributeValues: {
-                    ':timestamp': aiTimestamp,
-                    ':updated_at': aiTimestamp
-                }
-            };
-
-            await dynamoDB.update(updateConversationParams);
-
-            // Return successful AI response
-            return success({
-                message: {
-                    id: aiMessageId,
-                    content: JSON.stringify(aiResponse?.scored_chunks[0]),
-                    role: 'assistant',
-                    created_at: aiTimestamp
-                }
-            });
-        } else {
-            // Return error with user message ID for retry
-            return error({
-                error: aiError || 'Failed to get AI response',
-                userMessageId: messageId,
-                conversationId: conversationId
-            });
+        } catch (aiError) {
+            console.error('AI Response Error:', aiError);
         }
+
+        // If we reach here, either AI failed or formatting failed
+        // Return success with just the user message
+        return success({
+            message: {
+                id: messageId,
+                content: content,
+                role: 'user',
+                created_at: timestamp
+            }
+        });
 
     } catch (err) {
         console.error('Error creating message:', err);

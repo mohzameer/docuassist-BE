@@ -4,12 +4,14 @@ import {
     AdminCreateUserCommand,
     AdminInitiateAuthCommand,
     AdminSetUserPasswordCommand,
+    GlobalSignOutCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { ulid } from 'ulid';
 import dynamoDB from '../lib/dynamodb.js';
 import { success, error, notFound } from '../lib/response.js';
 import auth from '../middleware/auth.js';
 import { getCurrentTimestamp, validateRequiredFields } from '../utils/common.js';
+import { generatePassword } from '../utils/auth.js';
 
 const cognito = new CognitoIdentityProviderClient({});
 
@@ -366,7 +368,6 @@ export const loginUser = async (event) => {
     }
 };
 
-
 /**
  * Generate temporary password
  */
@@ -397,4 +398,132 @@ function generateTemporaryPassword() {
         .sort(() => Math.random() - 0.5)
         .join('');
 }
+
+export const createUserWithConversation = async (event) => {
+    try {
+        const { email, given_name, family_name, orgId, password: providedPassword } = JSON.parse(event.body);
+
+        // Validate required fields
+        if (!email || !given_name || !family_name || !orgId) {
+            return error(new Error('Missing required fields'));
+        }
+
+        // Use provided password or generate a secure random one
+        const password = providedPassword || generatePassword();
+
+        // 1. Create confirmed Cognito user with AWS SDK v3
+        const createUserCommand = new AdminCreateUserCommand({
+            UserPoolId: process.env.COGNITO_USER_POOL_ID,
+            Username: email,
+            TemporaryPassword: password,
+            UserAttributes: [
+                { Name: 'email', Value: email },
+                { Name: 'given_name', Value: given_name },
+                { Name: 'family_name', Value: family_name },
+                { Name: 'email_verified', Value: 'true' }
+            ],
+            MessageAction: 'SUPPRESS'
+        });
+
+        const cognitoResult = await cognito.send(createUserCommand);
+
+        // Set password as permanent with AWS SDK v3
+        const setPasswordCommand = new AdminSetUserPasswordCommand({
+            UserPoolId: process.env.COGNITO_USER_POOL_ID,
+            Username: email,
+            Password: password,
+            Permanent: true
+        });
+
+        await cognito.send(setPasswordCommand);
+
+        // 2. Create user in Users table
+        const timestamp = getCurrentTimestamp();
+        const userId = ulid();
+        const userParams = {
+            TableName: process.env.USERS_TABLE,
+            Item: {
+                userId: userId,
+                user_id_ref: cognitoResult.User.Username,
+                email: email,
+                given_name: given_name,
+                family_name: family_name,
+                orgId: orgId,
+                created_at: timestamp,
+                updated_at: timestamp,
+                status: 'active',
+                auth_provider: 'email'
+            }
+        };
+
+        await dynamoDB.put(userParams);
+
+        // 3. Create default conversation
+        const conversationId = ulid();
+        const conversationParams = {
+            TableName: process.env.CONVERSATIONS_TABLE,
+            Item: {
+                userId: userId,
+                conversationId: conversationId,
+                topic: 'Untitled conversation',
+                created_at: timestamp,
+                updated_at: timestamp,
+                last_message_timestamp: null
+            }
+        };
+
+        await dynamoDB.put(conversationParams);
+
+        // 4. Return user info and password
+        return success({
+            user: {
+                userId: userId,
+                email: email,
+                given_name: given_name,
+                family_name: family_name,
+                orgId: orgId
+            },
+            password: password,
+            defaultConversation: {
+                conversationId: conversationId,
+                topic: 'Untitled conversation'
+            }
+        });
+
+    } catch (err) {
+        console.error('Error creating user:', err);
+        return error(err);
+    }
+};
+
+export const logoutUser = async (event) => {
+    try {
+        // 1. Authenticate request to get access token
+        const user = await auth(event);
+        if (user.statusCode) return user;
+
+        // 2. Get the access token from the request headers
+        const accessToken = event.headers['Authorization']?.split(' ')[1] ||
+            event.headers['authorization']?.split(' ')[1];
+
+        if (!accessToken) {
+            return error(new Error('Access token is required'));
+        }
+
+        // 3. Call Cognito to globally sign out the user
+        const signOutCommand = new GlobalSignOutCommand({
+            AccessToken: accessToken
+        });
+
+        await cognito.send(signOutCommand);
+
+        return success({
+            message: 'Successfully logged out'
+        });
+
+    } catch (err) {
+        console.error('Error logging out:', err);
+        return error(err);
+    }
+};
 

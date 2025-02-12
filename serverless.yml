@@ -49,6 +49,7 @@ provider:
             - cognito-idp:AdminUpdateUserAttributes
             - cognito-idp:AdminDeleteUser
             - cognito-idp:GlobalSignOut
+            - cognito-idp:AdminConfirmSignUp
           Resource: 
             - !GetAtt UserPool.Arn
         - Effect: Allow
@@ -212,6 +213,28 @@ functions:
       - http:
           path: /conversations/{conversationId}/title
           method: put
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  createUserWithConversation:
+    handler: src/handlers/auth.createUserWithConversation
+    events:
+      - http:
+          path: /auth/users/create
+          method: post
+          cors:
+            origin: '*'
+            headers: ${self:custom.corsHeaders}
+            allowCredentials: true
+
+  logoutUser:
+    handler: src/handlers/auth.logoutUser
+    events:
+      - http:
+          path: /auth/logout
+          method: post
           cors:
             origin: '*'
             headers: ${self:custom.corsHeaders}
